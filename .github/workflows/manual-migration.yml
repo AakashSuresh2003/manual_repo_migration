@@ -1,0 +1,81 @@
+name: Manual-Repository-Migration-Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      GH_SOURCE_PAT:
+        description: 'GitHub Source Personal Access Token'
+        required: true
+      GH_PAT:
+        description: 'GitHub Target Personal Access Token'
+        required: true
+      GH_SOURCE_ORG:
+        description: 'GitHub Source Organization'
+        required: true
+      GH_TARGET_ORG:
+        description: 'GitHub Target Organization'
+        required: true
+      GH_SOURCE_REPO:
+        description: 'GitHub Source Repository'
+        required: true
+
+jobs:
+  prep-and-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Migrate repository
+        shell: pwsh
+        env:
+          GH_PAT: ${{ github.event.inputs.GH_PAT }}
+          GH_SOURCE_PAT: ${{ github.event.inputs.GH_SOURCE_PAT }}
+        run: |
+          function Exec {
+            param ([scriptblock]$ScriptBlock)
+            & $ScriptBlock
+            if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+            }
+          }
+
+          function ExecAndGetMigrationID {
+            param ([scriptblock]$ScriptBlock)
+            $Output = & $ScriptBlock
+            Write-Host $Output
+            $MigrationID = $Output | Select-String -Pattern "\(ID: (.+?)\)" | ForEach-Object { $_.Matches[0].Groups[1].Value }
+            return $MigrationID
+          }
+
+          $GH_PAT = "${{ github.event.inputs.GH_PAT }}"
+          $GH_SOURCE_PAT = "${{ github.event.inputs.GH_SOURCE_PAT }}"
+          $GH_SOURCE_ORG = "${{ github.event.inputs.GH_SOURCE_ORG }}"
+          $GH_TARGET_ORG = "${{ github.event.inputs.GH_TARGET_ORG }}"
+          $GH_SOURCE_REPO = "${{ github.event.inputs.GH_SOURCE_REPO }}"
+
+          Write-Host "::group::Migrating $GH_SOURCE_ORG/$GH_SOURCE_REPO"
+
+          $MigrationID = ExecAndGetMigrationID {
+            ./gei migrate-repo `
+              --github-source-org "$GH_SOURCE_ORG" `
+              --source-repo "$GH_SOURCE_REPO" `
+              --github-target-org "$GH_TARGET_ORG" `
+              --github-source-pat "$GH_SOURCE_PAT" `
+              --github-target-pat "$GH_PAT" `
+              --queue-only `
+              --lock-source-repo `
+              --verbose
+          }
+
+          if ($MigrationID) {
+            Write-Host "Queued migration with ID $MigrationID"
+            Write-Host "::endgroup::"
+
+            Write-Host "Waiting for migration ID $MigrationID to complete..."
+            ./gei wait-for-migration --migration-id $MigrationID
+            Write-Host "Migration completed."
+          } else {
+            Write-Error "Failed to queue migration."
+            exit 1
+          }
