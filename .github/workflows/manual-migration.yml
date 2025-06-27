@@ -69,6 +69,7 @@ jobs:
               --ghes-api-url "https://github.ford.com/api/v3" `
               --github-source-pat "$GH_SOURCE_PAT" `
               --github-target-pat "$GH_PAT" `
+              --use-github-storage `
               --queue-only `
               --lock-source-repo `
               --no-ssl-verify `
