@@ -66,7 +66,7 @@ jobs:
               --github-source-org "$GH_SOURCE_ORG" `
               --source-repo "$GH_SOURCE_REPO" `
               --github-target-org "$GH_TARGET_ORG" `
-              --ghes-api-url "https://github.ford.com/api/v3" \
+              --ghes-api-url "https://github.ford.com/api/v3" \ `
               --github-source-pat "$GH_SOURCE_PAT" `
               --github-target-pat "$GH_PAT" `
               --queue-only `
