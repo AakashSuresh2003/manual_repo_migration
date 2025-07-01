@@ -55,6 +55,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      - name: Download GEI CLI again (if not cached)
+        run: |
+          curl -L -o gei https://github.com/github/gh-gei/releases/latest/download/gei-linux-amd64
+          chmod +x gei
+
       - name: Migrate repository
         shell: pwsh
         env:
