@@ -141,5 +141,17 @@ jobs:
           $url = "https://api.github.com/orgs/$env:GH_TARGET_ORG/teams/$env:TEAM_NAME/repos/$env:GH_TARGET_ORG/$env:GH_SOURCE_REPO"
           $body = '{"permission": "admin"}'
 
-          Invoke-RestMethod -Method PUT -Uri $url -Headers $headers -Body $body -ContentType "application/json"
+          try {
+            $response = Invoke-WebRequest -Method PUT -Uri $url -Headers $headers -Body $body -ContentType "application/json" -ErrorAction Stop
+            if ($response.StatusCode -eq 204 -or $response.StatusCode -eq 200) {
+              Write-Host "✅ Team added successfully to $env:GH_SOURCE_REPO"
+            } else {
+              Write-Host "⚠️ Received unexpected status code: $($response.StatusCode)"
+            }
+          }
+          catch {
+            Write-Error "❌ Failed to add team. Status: $($_.Exception.Response.StatusCode.value__)"
+            Write-Error "Message: $($_.Exception.Message)"
+            exit 1
+          }
 
