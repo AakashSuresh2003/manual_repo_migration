@@ -18,6 +18,14 @@ on:
       GH_SOURCE_REPO:
         description: 'GitHub Source Repository'
         required: true
+      ADD_TEAM:
+        description: 'Do you want to add a team?'
+        required: true
+        default: false
+        type: boolean
+      TEAM_NAME:
+        description: 'GitHub Team Name (only required if adding a team)'
+        required: false
 
 jobs:
   prep:
@@ -40,17 +48,12 @@ jobs:
         id: set-output
         run: echo "gei-path=tools/gei" >> $GITHUB_OUTPUT
 
-  migrate:
+  Migrate:
     runs-on: ubuntu-latest
     needs: prep
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-
-      - name: Download GEI CLI again (if not cached)
-        run: |
-          curl -L -o gei https://github.com/github/gh-gei/releases/latest/download/gei-linux-amd64
-          chmod +x gei
 
       - name: Migrate repository
         shell: pwsh
@@ -103,3 +106,35 @@ jobs:
             Write-Error "Failed to queue migration."
             exit 1
           }
+  
+  add_teams:
+    runs-on: ubuntu-latest
+    needs: Migrate
+    if: ${{ github.event.inputs.ADD_TEAM == 'true' }}
+    steps:
+      - name: Fail if TEAM_NAME is not provided
+        shell: bash
+        run: |
+          if [ -z "${{ github.event.inputs.TEAM_NAME }}" ]; then
+            echo "Error: TEAM_NAME must be provided when ADD_TEAM is true."
+            exit 1
+          fi
+
+      - name: Add team to repo
+        shell: pwsh
+        env:
+          GH_PAT: ${{ github.event.inputs.GH_PAT }}
+          GH_TARGET_ORG: ${{ github.event.inputs.GH_TARGET_ORG }}
+          GH_SOURCE_REPO: ${{ github.event.inputs.GH_SOURCE_REPO }}
+          TEAM_NAME: ${{ github.event.inputs.TEAM_NAME }}
+        run: |
+          $headers = @{
+            Authorization = "Bearer $env:GH_PAT"
+            Accept = "application/vnd.github+json"
+          }
+
+          $url = "https://api.github.com/orgs/$env:GH_TARGET_ORG/teams/$env:TEAM_NAME/repos/$env:GH_TARGET_ORG/$env:GH_SOURCE_REPO"
+          $body = '{"permission": "admin"}'
+
+          Invoke-RestMethod -Method PUT -Uri $url -Headers $headers -Body $body -ContentType "application/json"
+
