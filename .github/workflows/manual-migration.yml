@@ -30,60 +30,51 @@ jobs:
         run: |
           curl -L -o gei https://github.com/github/gh-gei/releases/latest/download/gei-linux-amd64
           chmod +x gei
-
-      - name: Migrate repository
-        shell: pwsh
-        env:
-          GH_PAT: ${{ github.event.inputs.GH_PAT }}
-          GH_SOURCE_PAT: ${{ github.event.inputs.GH_SOURCE_PAT }}
-        run: |
-          function Exec {
-            param ([scriptblock]$ScriptBlock)
-            & $ScriptBlock
-            if ($LASTEXITCODE -ne 0) {
-              exit $LASTEXITCODE
-            }
+  Migrate:
+    - name: Migrate repository
+      shell: pwsh
+      env:
+        GH_PAT: ${{ github.event.inputs.GH_PAT }}
+        GH_SOURCE_PAT: ${{ github.event.inputs.GH_SOURCE_PAT }}
+      run: |
+        function Exec {
+          param ([scriptblock]$ScriptBlock)
+          & $ScriptBlock
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
           }
-
-          function ExecAndGetMigrationID {
-            param ([scriptblock]$ScriptBlock)
-            $Output = & $ScriptBlock
-            Write-Host $Output
-            $MigrationID = $Output | Select-String -Pattern "\(ID: (.+?)\)" | ForEach-Object { $_.Matches[0].Groups[1].Value }
-            return $MigrationID
-          }
-
-          $GH_PAT = "${{ github.event.inputs.GH_PAT }}"
-          $GH_SOURCE_PAT = "${{ github.event.inputs.GH_SOURCE_PAT }}"
-          $GH_SOURCE_ORG = "${{ github.event.inputs.GH_SOURCE_ORG }}"
-          $GH_TARGET_ORG = "${{ github.event.inputs.GH_TARGET_ORG }}"
-          $GH_SOURCE_REPO = "${{ github.event.inputs.GH_SOURCE_REPO }}"
-
-          Write-Host "::group::Migrating $GH_SOURCE_ORG/$GH_SOURCE_REPO"
-
-          $MigrationID = ExecAndGetMigrationID {
-            ./gei migrate-repo `
-              --github-source-org "$GH_SOURCE_ORG" `
-              --source-repo "$GH_SOURCE_REPO" `
-              --github-target-org "$GH_TARGET_ORG" `
-              --ghes-api-url "https://github.ford.com/api/v3" `
-              --github-source-pat "$GH_SOURCE_PAT" `
-              --github-target-pat "$GH_PAT" `
-              --use-github-storage `
-              --queue-only `
-              --lock-source-repo `
-              --no-ssl-verify `
-              --verbose
-          }
-
-          if ($MigrationID) {
-            Write-Host "Queued migration with ID $MigrationID"
-            Write-Host "::endgroup::"
-
-            Write-Host "Waiting for migration ID $MigrationID to complete..."
-            ./gei wait-for-migration --migration-id $MigrationID
-            Write-Host "Migration completed."
-          } else {
-            Write-Error "Failed to queue migration."
-            exit 1
-          }
+        }
+        function ExecAndGetMigrationID {
+          param ([scriptblock]$ScriptBlock)
+          $Output = & $ScriptBlock
+          Write-Host $Output
+          $MigrationID = $Output | Select-String -Pattern "\(ID: (.+?)\)" | ForEach-Object { $_.Matches[0].Groups[1].Value }
+          return $MigrationID
+        }
+        $GH_PAT = "${{ github.event.inputs.GH_PAT }}"
+        $GH_SOURCE_PAT = "${{ github.event.inputs.GH_SOURCE_PAT }}"
+        $GH_SOURCE_ORG = "${{ github.event.inputs.GH_SOURCE_ORG }}"
+        $GH_TARGET_ORG = "${{ github.event.inputs.GH_TARGET_ORG }}"
+        $GH_SOURCE_REPO = "${{ github.event.inputs.GH_SOURCE_REPO }}"
+        Write-Host "::group::Migrating $GH_SOURCE_ORG/$GH_SOURCE_REPO"
+        $MigrationID = ExecAndGetMigrationID {
+          ./gei migrate-repo `
+            --github-source-org "$GH_SOURCE_ORG" `
+            --source-repo "$GH_SOURCE_REPO" `
+            --github-target-org "$GH_TARGET_ORG" `
+            --github-source-pat "$GH_SOURCE_PAT" `
+            --github-target-pat "$GH_PAT" `
+            --queue-only `
+            --lock-source-repo `
+            --verbose
+        }
+        if ($MigrationID) {
+          Write-Host "Queued migration with ID $MigrationID"
+          Write-Host "::endgroup::"
+          Write-Host "Waiting for migration ID $MigrationID to complete..."
+          ./gei wait-for-migration --migration-id $MigrationID
+          Write-Host "Migration completed."
+        } else {
+          Write-Error "Failed to queue migration."
+          exit 1
+        }
